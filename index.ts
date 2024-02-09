@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer';
+import puppeteer, { KnownDevices } from 'puppeteer';
 import { schedule } from 'node-cron';
 
 interface CheckResult {
@@ -9,8 +9,6 @@ interface CheckResult {
 
 async function checkAvailability(postcode: string, houseNumber: number|string) {
     const browser = await puppeteer.launch({
-        // this won't run on in docker on mac
-        executablePath: process.arch === 'arm64' ? undefined : '/usr/bin/google-chrome',
         args: [
             '--disable-gpu',
             '--disable-dev-shm-usage',
@@ -19,7 +17,13 @@ async function checkAvailability(postcode: string, houseNumber: number|string) {
         ]
     });
     const page = await browser.newPage();
+    await page.emulate(KnownDevices['iPhone 13 Pro Max']);
+    await page.setRequestInterception(true);
+    page.on('request', req => {
+        return void (['stylesheet', 'font', 'image'].includes(req.resourceType()) ? req.abort() :req.continue());
+    });
     await page.goto('https://www.vodafone.co.uk/broadband/availability-checker');
+    await page.waitForNavigation({ waitUntil: ['domcontentloaded', 'networkidle0'] });
     await page.waitForSelector('#onetrust-accept-btn-handler')
         .then(async (el) => el!.click());
     await page.waitForSelector('#postcode')
@@ -28,10 +32,10 @@ async function checkAvailability(postcode: string, houseNumber: number|string) {
     await page.waitForSelector('#address')
         .then(async (el) => el!.select(String(houseNumber)));
     await page.click('#getNewLine-radio');
-    await page.focus('#address-line-form button:last-child');
 
     // click 'View broadband plans
     const btn = await page.$('.fSSKvU');
+    await btn?.focus();
     await btn?.click();
     const result = await page.waitForResponse(
         response => response.url().includes('https://www.vodafone.co.uk') &&
