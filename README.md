@@ -21,5 +21,5 @@ npm run build && node index.js
 OR
 (this is only tested on linux)
 ```bash
-docker build -t check-fiber . && docker run --rm -it --init check-fiber
+docker build -t check-fiber . && docker run --env-file .env --rm -it --init check-fiber
 ```
